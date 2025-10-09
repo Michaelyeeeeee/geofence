@@ -23,8 +23,6 @@ if __name__ == '__main__':
     reset = machine.Pin(board.GP9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)             # reset switch
     power_off = machine.Pin(board.GP10, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)        # power off switch
 
-    last_val = 0xFFFF
-
     gps_uart = initialize_gps()                                   # Initializes GPS
     lcd_uart = initialize_lcd(backlight_red=255, backlight_green=1, backlight_blue=255)
     
@@ -62,7 +60,7 @@ if __name__ == '__main__':
     outerPolygon = getOuterBoundary(outerPolygon, measure_outer, lcd_uart, gps_uart)
     time.sleep(0.5)
     innerPolygon = getInnerBoundary(innerPolygon, measure_inner, lcd_uart, gps_uart)
-    time.sleep(0.5)
+    time.sleep(5)
 
     #Main Loop
     while True:
