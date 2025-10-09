@@ -6,7 +6,7 @@ import adafruit_bno055
 import machine
 import math
 
-from tracking import Point, is_within_polygon, dataReceive, get_gps_location, get_latitude, get_longitude, initialize_gps, initialize_lcd, imu_update
+from tracking import Point, is_within_polygon, get_gps_location, get_latitude, get_longitude, initialize_gps, initialize_lcd, imu_update
 from boundary import getOuterBoundary, getInnerBoundary
 
 if __name__ == '__main__':
@@ -32,7 +32,6 @@ if __name__ == '__main__':
     #time.sleep(1.5) - Can add back in to display message for readability on LCD screen. The GPS sensor needs a few seconds to connect usually anyways. 
     
     # Example polygon for testing
-    
     '''
     outerPolygon = [
     (40.430484, 86.915721),
@@ -48,11 +47,7 @@ if __name__ == '__main__':
     (40.430835, 86.916097)
     ]
     '''
-    '''
-    # CHANGE IMU SETTINGS HERE (currently not in use)
-    imu_update_points = 7 # This value can be further optimized. If set to zero, there will be no IMU points (only GPS points).
-    imu_time_interval = 0.14 # This value can be further optimized. See IMU BNO055 documentation for minimum refresh rate.
-    '''
+
     #Initalize the GPS position and time trackers
     velocity_x = 0
     velocity_y = 0
@@ -72,80 +67,92 @@ if __name__ == '__main__':
     #Main Loop
     while True:
         if power_off.value() == 0:
-            print("Powering off system")
-            lcd_uart.write(b"Powering Off System            ")  # For 16x2 LCD
+            kart_in.value(0)  # disable kart
             # reset boundary files
+            print("Resetting boundary")
+            lcd_uart.write(b"Resetting Boundary            ")  # For 16x2 LCD
             with open("outer_boundary.txt", "w") as file:
                 file.write("")
             with open("inner_boundary.txt", "w") as file:
                 file.write("")
+            time.sleep(2)
+            print("Powering off system")
+            lcd_uart.write(b"Powering Off System            ")  # For 16x2 LCD
             break
         if reset.value() == 0:
+            kart_in.value(0)  # disable kart
+            print("Disabling kart for reset")
+            lcd_uart.write(b"Disabling Kart for Reset       ")  # For 16x2 LCD
+            time.sleep(3) # wait for kart to stop
             print("Resetting system")
             lcd_uart.write(b"Resetting System               ")  # For 16x2 LCD
-            # kart is always enabled during reset
-            kart_in.value(1)
+            # regets GPS lock
             latitude_avg,longitude_avg = 0,0
             latitude_avg,longitude_avg = get_gps_location(gps_uart)
             gps_start_time, imu_start_time = time.ticks_ms(), time.ticks_ms()
             print(f"Initial GPS Lock: {latitude_avg}, {longitude_avg}")
             lcd_uart.write(b"Initial GPS Lock Acquired      ")  # For 16x2 LCD
+            # resets velocity for IMU
+            velocity_x = 0
+            velocity_y = 0
             time.sleep(2)
+            # reenables kart
+            kart_in.value(1)
+            print(f"Kart Enabled")
+            lcd_uart.write(b"Kart Enabled                   ")  # For 16x2 LCD
         
-        latitude_LL = longitude_LL = latitude_GA = longitude_GA = 0
-        latDivisor = lonDivisor = 1
-        
-        #Check if GPS has position:
-        str_array = gps_uart.readline()
-        if not str_array:
-            pass
-        else:
-            try:
-                str_array = str_array.decode("utf-8").strip().split(",")      # Decodes GPS input
-                if str_array[0] == '$GPGLL':
-                    latitude_LL = get_latitude(str_array, 1)
-                    longitude_LL = get_longitude(str_array, 3)
+        if kart_in.value() == 1:
+            latitude_LL = longitude_LL = latitude_GA = longitude_GA = 0
+            latDivisor = lonDivisor = 1
+            
+            #Check if GPS has position:
+            str_array = gps_uart.readline()
+            if not str_array:
+                pass
+            else:
+                try:
+                    str_array = str_array.decode("utf-8").strip().split(",")      # Decodes GPS input
+                    if str_array[0] == '$GPGLL':
+                        latitude_LL = get_latitude(str_array, 1)
+                        longitude_LL = get_longitude(str_array, 3)
+                    elif str_array[0] == '$GPGGA':
+                        latitude_GA = get_latitude(str_array, 2)
+                        longitude_GA = get_longitude(str_array, 4)
+                    if (latitude_LL is not None or latitude_GA is not None) and (longitude_LL is not None or longitude_GA is not None):
+                        lat_values = [v for v in (latitude_LL, latitude_GA) if v is not None]
+                        lon_values = [v for v in (longitude_LL, longitude_GA) if v is not None]
+                        latitude_avg = sum(lat_values) / len(lat_values)
+                        longitude_avg = sum(lon_values) / len(lon_values)
+                    
+                        print(f"GPS UPDATE\nLatitude: {latitude_avg:.10f}\nLongitude: {longitude_avg:.10f}\nRaw Data: {str_array}\nGPS UPDATE TIME: {time.ticks_ms()-gps_start_time}ms\n")
+                        gps_start_time = time.ticks_ms()
+                except (ValueError, IndexError):
+                    lcd_uart.write(b"Error No Signal                 ")  # For 16x2 LCD
+                    print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
+            
+            if is_within_polygon(outerPolygon, (float(latitude_avg), float(longitude_avg))) is True and is_within_polygon(
+                    innerPolygon, (float(latitude_avg), float(longitude_avg))) is False:
+                lcd_uart.write(b"IN                              ")  # For 16x2 LCD
+                print("\nKart is in bounds\n")
+            else:
+                kart_in.value(0)
+                signal_time = time.ticks_ms() - imu_start_time
+                with open("stopping_time.txt", "w") as file:
+                    file.write(f"Processing Time: {signal_time}\n")
+                    vel = math.sqrt(velocity_x**2 + velocity_y**2)
+                    file.write(f"Magnitude of Velocity upon Exit: {vel}\n")
+                    file.write(f"Processing Distance: {(vel*signal_time)/1000} meters\n")
+                lcd_uart.write(b"OUT                             ")  # For 16x2 LCD
+                print("\nKart is out of bounds\n")
 
-                elif str_array[0] == '$GPGGA':
-                    latitude_GA = get_latitude(str_array, 2)
-                    longitude_GA = get_longitude(str_array, 4)
+            imu_start_time = time.ticks_ms()
+            latitude_avg, longitude_avg, velocity_x, velocity_y = imu_update(latitude_avg, longitude_avg, (time.ticks_ms()-imu_start_time)/10000, velocity_x, velocity_y, sensor)
+            update_time = time.ticks_ms() - imu_start_time
+            print(f'''IMU update time: {update_time} ms \nIMU refresh rate: {1000 / update_time} Hz''')
 
-                if (latitude_LL is not None or latitude_GA is not None) and (longitude_LL is not None or longitude_GA is not None):
-                    lat_values = [v for v in (latitude_LL, latitude_GA) if v is not None]
-                    lon_values = [v for v in (longitude_LL, longitude_GA) if v is not None]
-
-                    latitude_avg = sum(lat_values) / len(lat_values)
-                    longitude_avg = sum(lon_values) / len(lon_values)
-                
-                    print(f"GPS UPDATE\nLatitude: {latitude_avg:.10f}   Longitude: {longitude_avg:.10f}\nRaw Data: {str_array}\nGPS UPDATE TIME: {time.ticks_ms()-gps_start_time}ms\n")
-                    gps_start_time = time.ticks_ms()
-            except (ValueError, IndexError):
-                lcd_uart.write(b"Error No Signal                 ")  # For 16x2 LCD
-                print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
-        
-        if is_within_polygon(outerPolygon, (float(latitude_avg), float(longitude_avg))) is True and is_within_polygon(
-                innerPolygon, (float(latitude_avg), float(longitude_avg))) is False:
-            lcd_uart.write(b"IN                              ")  # For 16x2 LCD
-            print("\nKart is in bounds\n")
-        else:
-            kart_in.value(0)
-            signal_time = time.ticks_ms() - imu_start_time
-            with open("stopping_time.txt", "w") as file:
-                file.write(f"Time: {signal_time}\n")
-                vel = math.sqrt(velocity_x**2 + velocity_y**2)
-                file.write(f"Magnitude of Velocity: {vel}\n")
-                file.write(f"Processing Distance: {(vel*signal_time)/1000} meters\n")
-            lcd_uart.write(b"OUT                             ")  # For 16x2 LCD
-            print("\nKart is out of bounds\n")
-
-        imu_start_time = time.ticks_ms()
-        latitude_avg, longitude_avg, velocity_x, velocity_y = imu_update(latitude_avg, longitude_avg, (time.ticks_ms()-imu_start_time)/10000, velocity_x, velocity_y, sensor)
-        update_time = time.ticks_ms() - imu_start_time
-        print(f'''IMU update time: {update_time} ms \nIMU refresh rate: {1000 / update_time} Hz''')
-
-        # log data with col 0 = latitude, col 1 = longitude, separate with ;
-        with open("coord_datalog.txt", "a") as file:
-            file.write(f"{latitude_avg:.10f};{longitude_avg:.10f}\n")
-        # log data with col 0 = x velocity, col 1 = y velocity, separate with ;
-        with open("velocity_datalog.txt", "a") as file:
-            file.write(f"{velocity_x:.10f};{velocity_y:.10f}\n")
+            # log data with col 0 = latitude, col 1 = longitude, separate with ;
+            with open("coord_datalog.txt", "a") as file:
+                file.write(f"{latitude_avg:.10f};{longitude_avg:.10f}\n")
+            # log data with col 0 = x velocity, col 1 = y velocity, separate with ;
+            with open("velocity_datalog.txt", "a") as file:
+                file.write(f"{velocity_x:.10f};{velocity_y:.10f}\n")
