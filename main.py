@@ -20,8 +20,8 @@ if __name__ == '__main__':
     measure_inner = machine.Pin(board.GP7, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)     # inner boundary switch
     kart_in = machine.Pin(board.GP8, mode=machine.Pin.OUT)                                    # relay signal
     kart_in.value(1)                                                                          # start with kart enabled
-    reset = machine.Pin(board.GP9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)             # reset switch
-    power_off = machine.Pin(board.GP10, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)        # power off switch
+    reset_kart = machine.Pin(board.GP9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)             # reset switch
+    reset_boundary = machine.Pin(board.GP10, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)        # power off switch
 
     gps_uart = initialize_gps()                                   # Initializes GPS
     lcd_uart = initialize_lcd(backlight_red=255, backlight_green=1, backlight_blue=255)
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     #Main Loop
     while True:
-        if power_off.value() == 0:
+        if reset_boundary.value() == 0:
             kart_in.value(0)  # disable kart
             # reset boundary files
             print("Resetting boundary")
@@ -74,10 +74,10 @@ if __name__ == '__main__':
             with open("inner_boundary.txt", "w") as file:
                 file.write("")
             time.sleep(2)
-            print("Powering off system")
-            lcd_uart.write(b"Powering Off System            ")  # For 16x2 LCD
-            break
-        if reset.value() == 0:
+            print("Boundary Reset")
+            lcd_uart.write(b"Boundary Reset                 ")
+            
+        if reset_kart.value() == 0:
             kart_in.value(0)  # disable kart
             print("Disabling kart for reset")
             lcd_uart.write(b"Disabling Kart for Reset       ")  # For 16x2 LCD
