@@ -16,12 +16,12 @@ if __name__ == '__main__':
 
     i2c = busio.I2C(board.GP15, board.GP14, frequency=1000)                                   # Initializes I2C for the IMU
     sensor = adafruit_bno055.BNO055_I2C(i2c)                                                  # Initializes IMU
-    measure_outer = machine.Pin(board.GP6, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)     # outer boundary switch
-    measure_inner = machine.Pin(board.GP7, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)     # inner boundary switch
-    kart_in = machine.Pin(board.GP8, mode=machine.Pin.OUT)                                    # relay signal
+    measure_outer = machine.Pin(6, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)     # outer boundary switch
+    measure_inner = machine.Pin(7, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)     # inner boundary switch
+    kart_in = machine.Pin(8, mode=machine.Pin.OUT)                                    # relay signal
     kart_in.value(1)                                                                          # start with kart enabled
-    reset_kart = machine.Pin(board.GP9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)             # reset switch
-    reset_boundary = machine.Pin(board.GP10, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)        # power off switch
+    reset_kart = machine.Pin(9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)             # reset switch
+    reset_boundary = machine.Pin(10, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP)        # power off switch
 
     gps_uart = initialize_gps()                                   # Initializes GPS
     lcd_uart = initialize_lcd(backlight_red=255, backlight_green=1, backlight_blue=255)
@@ -84,6 +84,9 @@ if __name__ == '__main__':
             time.sleep(3) # wait for kart to stop
             print("Resetting system")
             lcd_uart.write(b"Resetting System               ")  # For 16x2 LCD
+            time.sleep(1)
+            lcd_uart.write(b"Ensure velocity is 0            ")  # For 16x2 LCD
+            time.sleep(2)
             # regets GPS lock
             latitude_avg,longitude_avg = 0,0
             latitude_avg,longitude_avg = get_gps_location(gps_uart)

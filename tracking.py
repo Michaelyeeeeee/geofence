@@ -133,7 +133,7 @@ def initialize_gps():
 # Turns on the LCD
 def initialize_lcd(backlight_red, backlight_green, backlight_blue):
     #lcd_uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))         # This line specifically should be changed to CircuitPython
-    lcd_uart = busio.UART(board.GP4, board.GP5, baudrate=9600)
+    lcd_uart = busio.UART(tx = board.GP4, rx = board.GP5, baudrate=9600)
     lcd_uart.write(b'|')  # write 5 bytes
     lcd_uart.write(b'\x18')  # write 5 bytes
     lcd_uart.write(b'\x08')  # contrast
