@@ -49,7 +49,8 @@ if __name__ == '__main__':
     gps_uart = initialize_gps()                                   # Initializes GPS
     lcd_uart = initialize_lcd(backlight_red=255, backlight_green=1, backlight_blue=255)
     
-    lcd_uart.write(b"Connecting to GPS...            ")  # For 16x2 LCD
+    lcd_uart.write(b'-') # Clear Display
+    lcd_uart.write(b"Connecting to GPS...")  # For 16x2 LCD
     #time.sleep(1.5) - Can add back in to display message for readability on LCD screen. The GPS sensor needs a few seconds to connect usually anyways. 
     
     relay_on = machine.Pin(11, mode=machine.Pin.OUT) # output for relay on/off
@@ -87,34 +88,43 @@ if __name__ == '__main__':
     latitude_avg,longitude_avg = get_gps_location(gps_uart, lcd_uart,gps_start_time)
     initial_time = time.ticks_ms()
 
-    lcd_uart.write(b"IN                              ")  # For 16x2 LCD
+    lcd_uart.write(b'-') # Clear Display
+    lcd_uart.write(b"IN")  # For 16x2 LCD
 
     #Main Loop
     while True:
         if reset_kart.value() == 0:
             relay_on.value(0)  # disable kart
-            print("Disabling kart for reset")
-            lcd_uart.write(b"Disabling Kart for Reset       ")  # For 16x2 LCD
+            # print("Disabling kart for reset")
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Disabling Kart for Reset")  # For 16x2 LCD
             time.sleep(3) # wait for kart to stop
-            print("Resetting system")
-            lcd_uart.write(b"Resetting System               ")  # For 16x2 LCD
+            # print("Resetting system")
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Resetting System")  # For 16x2 LCD
             time.sleep(1)
-            lcd_uart.write(b"Ensure velocity is 0            ")  # For 16x2 LCD
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Ensure velocity is 0")  # For 16x2 LCD
             time.sleep(5)
             # regets GPS lock
             latitude_avg,longitude_avg = 0,0
             latitude_avg,longitude_avg = get_gps_location(gps_uart, lcd_uart, time.ticks_ms())
             gps_start_time, imu_start_time = time.ticks_ms(), time.ticks_ms()
             print(f"Initial GPS Lock: {latitude_avg}, {longitude_avg}")
-            lcd_uart.write(b"Initial GPS Lock Acquired      ")  # For 16x2 LCD
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Initial GPS Lock Acquired")  # For 16x2 LCD
             # resets velocity for IMU
             velocity_x = 0
             velocity_y = 0
             time.sleep(2)
             # reenables kart
             relay_on.value(1)
-            print(f"Kart Enabled")
-            lcd_uart.write(b"Kart Enabled                   ")  # For 16x2 LCD
+            # print(f"Kart Enabled")
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Kart Enabled")  # For 16x2 LCD
+            time.sleep(2)
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"IN")  # For 16x2 LCD
 
         if relay_on.value() == 1:
             imu_start_time = time.ticks_ms()
@@ -143,7 +153,8 @@ if __name__ == '__main__':
                     gps_start_time = time.ticks_ms()
 
                 except (ValueError, IndexError):
-                    lcd_uart.write(b"Error No Signal                 ")  # For 16x2 LCD
+                    lcd_uart.write(b'-') # Clear Display
+                    lcd_uart.write(b"Error No Signal")  # For 16x2 LCD
                      # print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
             
             update_time = time.ticks_ms() - imu_start_time
@@ -155,10 +166,11 @@ if __name__ == '__main__':
                 '''
                 print("\nKart is in bounds\n")
                 '''
-                lcd_uart.write(b"IN                              ")  # For 16x2 LCD
+
             else:
                 relay_on.value(0)
-                lcd_uart.write(b"OUT                             ")  # For 16x2 LCD
+                lcd_uart.write(b'-') # Clear Display
+                lcd_uart.write(b"OUT")  # For 16x2 LCD
                 print(f"Stop distance: {(update_time) / 1000 * (velocity_x ** 2 + velocity_y ** 2) ** 0.5}m")
                 '''
                 print("\nKart is out of bounds\n")

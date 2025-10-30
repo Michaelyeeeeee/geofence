@@ -71,7 +71,8 @@ def get_gps_location(gps_uart, lcd_uart,gps_start_time):
                 latitude_GA = get_latitude(str_array, 2)
                 longitude_GA = get_longitude(str_array, 4)
         except (ValueError, IndexError):
-            lcd_uart.write(b"Error                           ")  # For 16x2 LCD
+            lcd_uart.write(b'-') # Clear Display
+            lcd_uart.write(b"Error")  # For 16x2 LCD
             print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
     
     if (latitude_LL != 0 and latitude_GA != 0):

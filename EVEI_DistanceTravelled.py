@@ -23,14 +23,16 @@ def main():
         # Assume constant acceleration
         time = -velocity / acceleration 
         distance = velocity * time / 2 + recognition_time * velocity
+        time += recognition_time
     
     else:
         force = weight * GRAVITY * frictional_coefficient
         acceleration = -force / weight 
         # Assume constant acceleration
-        time = -velocity / acceleration + recognition_time
+        time = -velocity / acceleration
         # Will travel recognition time at max velocity
         distance = velocity * time / 2 + recognition_time * velocity
+        time += recognition_time
 
     print(f"The kart will stop after {time+recognition_time:.3f} seconds.\nThe cart will travel {distance:.3f} meters past the geofence.")
     # handle friction scenario
