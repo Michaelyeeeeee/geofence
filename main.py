@@ -150,6 +150,7 @@ if __name__ == '__main__':
             if is_within_polygon(outerPolygon, (float(latitude_avg), float(longitude_avg))) is True and is_within_polygon(
                     innerPolygon, (float(latitude_avg), float(longitude_avg))) is False:
                 print("\nKart is in bounds\n")
+                lcd_uart.write(b"IN                              ")  # For 16x2 LCD
             else:
                 relay_on.value(0)
                 lcd_uart.write(b"OUT                             ")  # For 16x2 LCD
