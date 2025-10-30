@@ -56,6 +56,9 @@ if __name__ == '__main__':
     relay_on.value(1)
     reset_kart = machine.Pin(9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP) # input for reset or not reset
     
+    with open("imu_data.txt", "a") as file:
+        print("wiped imu_data.txt\n")
+    
     # Example polygon for testing
     
     '''
@@ -97,10 +100,10 @@ if __name__ == '__main__':
             lcd_uart.write(b"Resetting System               ")  # For 16x2 LCD
             time.sleep(1)
             lcd_uart.write(b"Ensure velocity is 0            ")  # For 16x2 LCD
-            time.sleep(2)
+            time.sleep(5)
             # regets GPS lock
             latitude_avg,longitude_avg = 0,0
-            latitude_avg,longitude_avg = get_gps_location(gps_uart)
+            latitude_avg,longitude_avg = get_gps_location(gps_uart, lcd_uart, time.ticks_ms())
             gps_start_time, imu_start_time = time.ticks_ms(), time.ticks_ms()
             print(f"Initial GPS Lock: {latitude_avg}, {longitude_avg}")
             lcd_uart.write(b"Initial GPS Lock Acquired      ")  # For 16x2 LCD
@@ -116,43 +119,48 @@ if __name__ == '__main__':
         if relay_on.value() == 1:
             imu_start_time = time.ticks_ms()
             
-            latitude_LL = longitude_LL = latitude_GA = longitude_GA = 0
-            latDivisor = lonDivisor = 1
-            
             #Check if GPS has position:
             str_array = gps_uart.readline()
             if not str_array:
                 pass
             else:
                 try:
+                    has_coords = False
                     str_array = str_array.decode("utf-8").strip().split(",")      # Decodes GPS input
                     if str_array[0] == '$GPGLL':
                         new_latitude_avg = get_latitude(str_array, 1)
                         new_longitude_avg = get_longitude(str_array, 3)
+                        has_coords = True
                     elif str_array[0] == '$GPGGA':
                         new_latitude_avg = get_latitude(str_array, 2)
                         new_longitude_avg = get_longitude(str_array, 4)
-                    if(math.fabs(new_latitude_avg - latitude_avg) < 0.05 and abs(new_longitude_avg - longitude_avg) < 0.05):
+                        has_coords = True
+                    if has_coords and (math.fabs(new_latitude_avg - latitude_avg) < 0.05 and abs(new_longitude_avg - longitude_avg) < 0.05):
                         latitude_avg = new_latitude_avg
                             
-                    with open("gps_data", "a") as file:
+                    with open("gps_data.txt", "a") as file:
                         file.write(f"{latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")
                     gps_start_time = time.ticks_ms()
 
                 except (ValueError, IndexError):
                     lcd_uart.write(b"Error No Signal                 ")  # For 16x2 LCD
-                    print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
+                     # print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
             
             update_time = time.ticks_ms() - imu_start_time
             latitude_avg, longitude_avg, velocity_x, velocity_y = imu_update(latitude_avg, longitude_avg, update_time, velocity_x, velocity_y, sensor)
             print(f'''IMU update time: {update_time} ms \nIMU refresh rate: {1000 / update_time} Hz''')
-
+            
             if is_within_polygon(outerPolygon, (float(latitude_avg), float(longitude_avg))) is True and is_within_polygon(
                     innerPolygon, (float(latitude_avg), float(longitude_avg))) is False:
+                '''
                 print("\nKart is in bounds\n")
+                '''
                 lcd_uart.write(b"IN                              ")  # For 16x2 LCD
             else:
                 relay_on.value(0)
                 lcd_uart.write(b"OUT                             ")  # For 16x2 LCD
+                print(f"Stop distance: {(update_time) / 1000 * (velocity_x ** 2 + velocity_y ** 2) ** 0.5}m")
+                '''
                 print("\nKart is out of bounds\n")
                 print(f"\n\ntime to glitch: {(time.ticks_ms()-initial_time)/1000} secs")
+                '''

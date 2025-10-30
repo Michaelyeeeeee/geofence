@@ -51,7 +51,7 @@ def get_gps_location(gps_uart, lcd_uart,gps_start_time):
     
     while ((latitude_LL==0 and longitude_LL==0) and (latitude_GA==0 and longitude_GA==0)):
             
-        time.sleep(0.03)
+        time.sleep(0.25)
         str_array = gps_uart.readline()
         # print(str_array)
         
@@ -83,13 +83,13 @@ def get_gps_location(gps_uart, lcd_uart,gps_start_time):
     latitude_avg = (float(latitude_LL) + float(latitude_GA)) / latDivisor
     longitude_avg = (float(longitude_LL) + float(longitude_GA)) / lonDivisor
 
-    with open("gps_data", "w") as file:
-        file.write(f"latitude, longitude, update time (m/s)")
+    with open("gps_data.txt", "w") as file:
+        file.write(f"latitude, longitude, update time (m/s)\n")
         file.write(f"{latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")
     return latitude_avg, longitude_avg
 
 def imu_update(latAvg, longAvg, time_interval, velocity_x, velocity_y, sensor):
-    print(f"time int: {time_interval}")
+    # print(f"time int: {time_interval}")
     
     earth_radius = 6378137.0  # Earth's equitorial radius in meters
 
@@ -107,12 +107,11 @@ def imu_update(latAvg, longAvg, time_interval, velocity_x, velocity_y, sensor):
     newlatAvg = latAvg + latitude_change
     newlongAvg = longAvg + longitude_change
     
-    with open("imu_data", "a") as file:
-        file.write("latitude,longitude, sensor acceleration (m/s^2)")
-        file.write(f"{newlatAvg:.10f},{newlongAvg:.10f},{sensor.linear_acceleartion}\n")
+    with open("imu_data.txt", "a") as file:
+        file.write("latitude,longitude, sensor acceleration (m/s^2)\n")
+        file.write(f"{newlatAvg:.10f},{newlongAvg:.10f},{sensor.linear_acceleration}\n")
     
-    print("IMU update")
+    # print("IMU update")
     print(f"new latitude: {newlatAvg} new longitude: {newlongAvg} velx(m/s): {velocity_x} vely(m/s): {velocity_y}")
-    print(f"sensor acceleration (m/s^2): {sensor.linear_acceleration}")
-    
+    # print(f"sensor acceleration (m/s^2): {sensor.linear_acceleration}")
     return newlatAvg, newlongAvg, velocity_x, velocity_y
