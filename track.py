@@ -41,7 +41,7 @@ def get_longitude(str_array, index2):
     return longitude
 
 # Gets Current Location
-def get_gps_location(gps_uart, lcd_uart,loggingFileName,gps_start_time):
+def get_gps_location(gps_uart, lcd_uart,gps_start_time):
     latitude_LL = 0
     longitude_LL = 0
     latitude_GA = 0 
@@ -62,22 +62,14 @@ def get_gps_location(gps_uart, lcd_uart,loggingFileName,gps_start_time):
             str_array = str_array.decode("utf-8")       # Decodes GPS input
             time.sleep(0.03)
             str_array = str_array.split(",")
-            # print(str_array)                            # Prints GPS Output
             
             if str_array[0] == '$GPGLL':
-                #print("in GPGLL")
-                #lcd_uart.write("in GNGLL")
                 latitude_LL = get_latitude(str_array, 1)
                 longitude_LL = get_longitude(str_array, 3)
-                #print("in GPGLL2: Latitude: ", latitude + "  Longitude: ", longitude)
-                #lcd_uart.write("in GNGLL2")
 
             elif str_array[0] == '$GPGGA':
-                #print("in GPGGA")
-                #lcd_uart.write("in GNGGA")
                 latitude_GA = get_latitude(str_array, 2)
                 longitude_GA = get_longitude(str_array, 4)
-                #print("in GPGGA2: Latitude: ", latitude  + "  Longitude: ", longitude)
         except (ValueError, IndexError):
             lcd_uart.write(b"Error                           ")  # For 16x2 LCD
             print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
@@ -91,55 +83,33 @@ def get_gps_location(gps_uart, lcd_uart,loggingFileName,gps_start_time):
     latitude_avg = (float(latitude_LL) + float(latitude_GA)) / latDivisor
     longitude_avg = (float(longitude_LL) + float(longitude_GA)) / lonDivisor
 
-    #print("LatIN: " + str(latitude_avg) + " LongIN: " + str(longitude_avg))
-    with open(loggingFileName, "w") as file:
-        file.write("Initial GPS UPDATE\n\n")
-        file.write(f"Latitude: {latitude_avg:.10f}   Longitude: {longitude_avg:.10f}\n\n")
-        file.write(f"Raw Data: {str_array}\n\n")
-        file.write(f"GPS UPDATE TIME: {time.ticks_ms()-gps_start_time}ms\n")
+    with open("gps_data", "w") as file:
+        file.write(f"latitude, longitude, update time (m/s)")
+        file.write(f"{latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")
     return latitude_avg, longitude_avg
 
-def imu_update(latAvg, longAvg, time_interval, velocity_x, velocity_y, sensor, updateFile):
+def imu_update(latAvg, longAvg, time_interval, velocity_x, velocity_y, sensor):
     print(f"time int: {time_interval}")
     
     earth_radius = 6378137.0  # Earth's equitorial radius in meters
 
     imu_acceleration_x, imu_acceleration_y, imu_acceleration_z = sensor.linear_acceleration
-    
-
-    #print("Accelerations")
-    #print(f"Acceleration X: {imu_acceleration_x:.10f}   Acceleration Y: {imu_acceleration_y:.10f}")
-    #print("Sensor Linear Accelearion")
-    #print(sensor.linear_acceleration)
 
     # Velocity Estimation
     velocity_x += imu_acceleration_x * time_interval
     velocity_y += imu_acceleration_y * time_interval
 
-    #print("VELOCITIES")
-    #print(f"Velocity X: {velocity_x:.10f}   Velocity Y: {velocity_y:.10f}") 
-
     # Position Estimation
     latitude_change = ((velocity_x * time_interval) / earth_radius) * (180 / math.pi)
     longitude_change = ((velocity_y * time_interval) / earth_radius) * (180 / math.pi) / math.cos(math.radians(latAvg))
-    
-    #print("LAT AVG/LONGAVG")
-    #print(f"Latitude: {latAvg:.10f}   Longitude: {longAvg:.10f}")
-
-    #print("CHANGES")
-    #print(f"Latitude Change: {latitude_change:.10f}   Longitude Change: {longitude_change:.10f}")  
 
     # Update latitude and longitude
     newlatAvg = latAvg + latitude_change
     newlongAvg = longAvg + longitude_change
-
-    #logging into text file 
-    #TODO: test
     
-    with open(updateFile, "a") as file:
-        file.write("IMU UPDATE\n\n")
-        file.write(f"Latitude: {newlatAvg:.10f}   Longitude: {newlongAvg:.10f}\n\n")
-        file.write(f"IMU DATA: {sensor.linear_acceleration}\n\n")
+    with open("imu_data", "a") as file:
+        file.write("latitude,longitude, sensor acceleration (m/s^2)")
+        file.write(f"{newlatAvg:.10f},{newlongAvg:.10f},{sensor.linear_acceleartion}\n")
     
     print("IMU update")
     print(f"new latitude: {newlatAvg} new longitude: {newlongAvg} velx(m/s): {velocity_x} vely(m/s): {velocity_y}")
