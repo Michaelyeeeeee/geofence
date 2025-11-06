@@ -58,7 +58,8 @@ if __name__ == '__main__':
     relay_on.value(1)
     reset_kart = machine.Pin(9, mode=machine.Pin.IN, pull=machine.Pin.PULL_UP) # input for reset or not reset
     
-    with open("imu_data.txt", "a") as file:
+    with open("imu_data.txt", "w") as file:
+        file.write("{new_lat}, {new_lon}, {ax_b}, {ay_b}, {az_b}, {ax_n}, {ay_n}, {az_n}, {vel_x}, {vel_y}, {new_vel_x}, {new_vel_y}, {dt}\n")
         print("wiped imu_data.txt\n")
     
     # Example polygon for testing
@@ -153,8 +154,9 @@ if __name__ == '__main__':
                         new_latitude_avg = get_latitude(str_array, 2)
                         new_longitude_avg = get_longitude(str_array, 4)
                         has_coords = True
-                    if has_coords and (math.fabs(new_latitude_avg - latitude_avg) < 0.05 and abs(new_longitude_avg - longitude_avg) < 0.05):
+                    if has_coords and (math.fabs(new_latitude_avg - latitude_avg) < 0.05 and fabs(-1 * new_longitude_avg - longitude_avg) < 0.05):
                         latitude_avg = new_latitude_avg
+                        longitude_avg = -1 *new_longitude_avg
                             
                     with open("gps_data.txt", "a") as file:
                         file.write(f"{latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")

@@ -73,7 +73,7 @@ def get_gps_location(gps_uart, lcd_uart,gps_start_time):
         except (ValueError, IndexError):
             lcd_uart.write(b'|')  # Setting character
             lcd_uart.write(b'-')  # Clear display # Clear Display
-            lcd_uart.write(b"Error")  # For 16x2 LCD
+            lcd_uart.write(b"Attempting to retrieve GPS coords")  # For 16x2 LCD
             print("valueError: Likely no signal from being inside, no GPS antenna connected, or a broken wire")
     
     if (latitude_LL != 0 and latitude_GA != 0):
@@ -84,36 +84,105 @@ def get_gps_location(gps_uart, lcd_uart,gps_start_time):
     
     latitude_avg = (float(latitude_LL) + float(latitude_GA)) / latDivisor
     longitude_avg = (float(longitude_LL) + float(longitude_GA)) / lonDivisor
-
+    
+    print("wiped gps_data.txt")
     with open("gps_data.txt", "w") as file:
         file.write(f"latitude, longitude, update time (m/s)\n")
-        file.write(f"{latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")
+        file.write(f"initial: {latitude_avg:.10f},{longitude_avg:.10f},{time.ticks_ms()-gps_start_time}\n")
     return latitude_avg, longitude_avg
 
-def imu_update(latAvg, longAvg, time_interval, velocity_x, velocity_y, sensor):
-    # print(f"time int: {time_interval}")
-    
-    earth_radius = 6378137.0  # Earth's equitorial radius in meters
 
-    imu_acceleration_x, imu_acceleration_y, imu_acceleration_z = sensor.linear_acceleration
 
-    # Velocity Estimation
-    velocity_x += imu_acceleration_x * time_interval
-    velocity_y += imu_acceleration_y * time_interval
 
-    # Position Estimation
-    latitude_change = ((velocity_x * time_interval) / earth_radius) * (180 / math.pi)
-    longitude_change = ((velocity_y * time_interval) / earth_radius) * (180 / math.pi) / math.cos(math.radians(latAvg))
 
-    # Update latitude and longitude
-    newlatAvg = latAvg + latitude_change
-    newlongAvg = longAvg + longitude_change
-    
-    with open("imu_data.txt", "a") as file:
-        file.write("latitude,longitude, sensor acceleration (m/s^2)\n")
-        file.write(f"{newlatAvg:.10f},{newlongAvg:.10f},{sensor.linear_acceleration}\n")
-    
-    # print("IMU update")
-    print(f"new latitude: {newlatAvg} new longitude: {newlongAvg} velx(m/s): {velocity_x} vely(m/s): {velocity_y}")
-    # print(f"sensor acceleration (m/s^2): {sensor.linear_acceleration}")
-    return newlatAvg, newlongAvg, velocity_x, velocity_y
+''' @brief Converts quaternion to rotation matrix and rotates vector
+    @param q: quaternion (w,x,y,z)
+'''
+def quat_to_rot_matrix(q):
+    if len(q) != 4:
+        raise ValueError("Quaternion must have 4 elements")
+    # bno055 always returns (w,x,y,z)
+    w, x, y, z = q
+    # normalize
+    norm = math.sqrt(w*w + x*x + y*y + z*z)
+    if norm == 0:
+        return [[1,0,0],[0,1,0],[0,0,1]]
+    w/=norm; x/=norm; y/=norm; z/=norm
+    # rotation matrix (body -> nav)
+    R = [
+        [1-2*(y*y+z*z),   2*(x*y - z*w),   2*(x*z + y*w)],
+        [2*(x*y + z*w),   1-2*(x*x+z*z),   2*(y*z - x*w)],
+        [2*(x*z - y*w),   2*(y*z + x*w),   1-2*(x*x+y*y)]
+    ]
+    return R
+''' @brief Rotates vector v using rotation matrix R
+    @param R: rotation matrix'''
+def rotate_vector(R, v):
+    return (
+        R[0][0]*v[0] + R[0][1]*v[1] + R[0][2]*v[2],
+        R[1][0]*v[0] + R[1][1]*v[1] + R[1][2]*v[2],
+        R[2][0]*v[0] + R[2][1]*v[1] + R[2][2]*v[2],
+    )
+
+# meters-per-degree approximations (WGS-84 based)
+def meters_per_degree_lat(lat_rad):
+    # latitude in radians
+    # approximate length of a degree latitude (meters)
+    return 111132.92 - 559.82 * math.cos(2*lat_rad) + 1.175 * math.cos(4*lat_rad) - 0.0023 * math.cos(6*lat_rad)
+
+def meters_per_degree_lon(lat_rad):
+    # length of a degree longitude (meters)
+    return 111412.84 * math.cos(lat_rad) - 93.5 * math.cos(3*lat_rad) + 0.118 * math.cos(5*lat_rad)
+
+''' @brief Updates latitude, longitude, and velocities using IMU data
+
+    @param lat, lon: current latitude, longitude in degrees
+    @param dt: time interval in seconds (float)
+    @param vel_x, vel_y: velocities in m/s along local north (x) and east (y)
+    @param sensor: BNO055 sensor object with linear_acceleration and orientation/quaternion
+    @return: new_lat, new_lon, new_vel_x, new_vel_y'''
+def imu_update(lat, lon, dt, vel_x, vel_y, sensor):
+    if dt <= 0:
+        return lat, lon, vel_x, vel_y
+
+    # read accelerometer
+    ax_b, ay_b, az_b = sensor.linear_acceleration
+    # quaternion
+    q = sensor.quaternion
+
+    if q is not None:
+        try:
+            R = quat_to_rot_matrix(q)
+            ax_n, ay_n, az_n = rotate_vector(R, (ax_b, ay_b, az_b))
+        except Exception:
+            # fallback: assume body==nav
+            ax_n, ay_n, az_n = ax_b, ay_b, az_b
+    else:
+        # no orientation info: assume accelerations are already in nav frame
+        ax_n, ay_n, az_n = ax_b, ay_b, az_b
+
+    # integrate acceleration -> velocity using simple Euler/trapezoid:
+    new_vel_x = vel_x + ax_n * dt
+    new_vel_y = vel_y + ay_n * dt
+
+    # displacement using average velocity (trapezoidal integration)
+    disp_n = 0.5 * (vel_x + new_vel_x) * dt   # north displacement in meters
+    disp_e = 0.5 * (vel_y + new_vel_y) * dt   # east displacement in meters
+
+    # convert meter displacements to degree changes
+    lat_rad = math.radians(lat)
+    m_per_deg_lat = meters_per_degree_lat(lat_rad)
+    m_per_deg_lon = meters_per_degree_lon(lat_rad)
+    delta_lat_deg = disp_n / m_per_deg_lat
+    delta_lon_deg = disp_e / m_per_deg_lon
+
+    new_lat = lat + delta_lat_deg
+    new_lon = lon + delta_lon_deg
+
+    try:
+        with open("imu_data.txt", 'a') as f:
+            f.write(f"{new_lat}, {new_lon}, {ax_b}, {ay_b}, {az_b}, {ax_n}, {ay_n}, {az_n}, {vel_x}, {vel_y}, {new_vel_x}, {new_vel_y}, {dt}")
+    except Exception:
+        pass
+
+    return new_lat, new_lon, new_vel_x, new_vel_y
