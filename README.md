@@ -16,8 +16,9 @@
 If GPS reports out of bounds, kart_in = 0 and power is cut until reset.
 
 # boundary.py:
-getOuterBoundary - user flips on outer_boundary switch to start recording points for boundary, flip off to stop
-getInnterBoundary - user flips on inner_boundary switch to start recording points for inner boundary, flip off to stop
+Reads data from coordinates.csv and parses for inner and outer loop
+Creates boundary from coordinate points (lat,lon)
+Checks whether kart is in bounds or out of bounds
 
 # tracking.py:
 initialization functions for GPS, IMU, LCD
